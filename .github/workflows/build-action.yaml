@@ -47,6 +47,6 @@ jobs:
           message: 'build(action): build dist'
           branch: build-dist
           primary: main
-          fork: true
+          fork: false
           force: true
           git_dir: './action/dist'

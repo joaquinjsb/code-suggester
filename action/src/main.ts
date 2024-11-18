@@ -13,7 +13,7 @@
  * // See the License for the specific language governing permissions and
  * // limitations under the License.
  * //
- * //Modifications made by Joaquin Santana on 18/11/24, 22:44
+ * //Modifications made by Joaquin Santana on 18/11/24, 22:45
  */
 
 import * as core from '@actions/core';
@@ -24,7 +24,7 @@ import {
   getDiffString,
   CreatePullRequestUserOptions,
   CreateReviewCommentUserOptions,
-} from 'gitea-code-suggester';
+} from 'code-suggester';
 import {Octokit} from '@octokit/rest';
 
 export async function run(): Promise<void> {

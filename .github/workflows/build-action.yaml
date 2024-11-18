@@ -20,6 +20,9 @@ name: build-action
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
       - name: build
@@ -32,8 +35,8 @@ jobs:
           npm run package
       - name: open-pull-request
         uses: googleapis/code-suggester@bdc0d58d4f62704eaf3d83e2be2255a5d8a41cee # v4
-#        env:
-        #  ACCESS_TOKEN: ${{ secrets.YOSHI_CODE_BOT_TOKEN }}
+        env:
+          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           command: pr
           upstream_owner: joaquinjsb

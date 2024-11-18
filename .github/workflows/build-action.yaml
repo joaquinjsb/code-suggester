@@ -36,7 +36,7 @@ jobs:
           ACCESS_TOKEN: ${{ secrets.YOSHI_CODE_BOT_TOKEN }}
         with:
           command: pr
-          upstream_owner: googleapis
+          upstream_owner: joaquinjsb
           upstream_repo: code-suggester
           description: 'Compiles the code-suggester action dist'
           title: 'build(action): build dist'

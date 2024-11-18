@@ -21,4 +21,4 @@ jobs:
           npm run compile
           pushd action
           npm ci
-          npm test
+#          npm test

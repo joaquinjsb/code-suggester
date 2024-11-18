@@ -32,7 +32,7 @@ jobs:
           npm run package
       - name: open-pull-request
         uses: googleapis/code-suggester@bdc0d58d4f62704eaf3d83e2be2255a5d8a41cee # v4
-        env:
+#        env:
         #  ACCESS_TOKEN: ${{ secrets.YOSHI_CODE_BOT_TOKEN }}
         with:
           command: pr

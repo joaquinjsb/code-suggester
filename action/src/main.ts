@@ -13,7 +13,7 @@
  * // See the License for the specific language governing permissions and
  * // limitations under the License.
  * //
- * //Modifications made by Joaquin Santana on 18/11/24, 22:45
+ * //Modifications made by Joaquin Santana on 18/11/24, 22:49
  */
 
 import * as core from '@actions/core';
@@ -82,6 +82,8 @@ function parsePullRequestOptions(): CreatePullRequestUserOptions {
   return {
     upstreamOwner: owner,
     upstreamRepo: repo,
+    username: core.getInput('username'),
+    password: core.getInput('password'),
     message: core.getInput('message', {required: true}),
     description: core.getInput('description', {required: true}),
     title: core.getInput('title', {required: true}),

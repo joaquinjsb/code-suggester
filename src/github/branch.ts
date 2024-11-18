@@ -1,16 +1,20 @@
-// Copyright 2020 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * // Copyright 2020 Google LLC
+ * //
+ * // Licensed under the Apache License, Version 2.0 (the "License");
+ * // you may not use this file except in compliance with the License.
+ * // You may obtain a copy of the License at
+ * //
+ * //     https://www.apache.org/licenses/LICENSE-2.0
+ * //
+ * // Unless required by applicable law or agreed to in writing, software
+ * // distributed under the License is distributed on an "AS IS" BASIS,
+ * // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * // See the License for the specific language governing permissions and
+ * // limitations under the License.
+ * //
+ * //Modifications made by Joaquin Santana on 18/11/24, 22:09
+ */
 
 import {logger} from '../logger';
 import {RepoDomain} from '../types';
@@ -47,8 +51,10 @@ export async function getBranchHead(
       branch,
     })
   ).data;
-  logger.info(`Successfully found branch HEAD sha "${branchData.commit.sha}".`);
-  return branchData.commit.sha;
+  // @ts-ignore gitea adaption
+  logger.info(`Successfully found branch HEAD sha "${branchData.commit.id}".`);
+  // @ts-ignore gitea adaption
+  return branchData.commit.id;
 }
 
 /**
@@ -65,13 +71,15 @@ export async function existsBranchWithName(
 ): Promise<boolean> {
   try {
     const data = (
-      await octokit.git.getRef({
+      await octokit.request('GET /repos/{owner}/{repo}/branches/{branch}', {
         owner: remote.owner,
         repo: remote.repo,
-        ref: `heads/${name}`,
+        branch: name,
       })
     ).data;
-    return data.ref ? true : false;
+
+    // @ts-ignore
+    return !!data.commit.id;
   } catch (err) {
     if ((err as {status: number}).status === 404) return false;
     else throw err;
@@ -96,14 +104,15 @@ export async function createBranch(
 ): Promise<void> {
   if (!duplicate) {
     const refData = (
-      await octokit.git.createRef({
+      await octokit.request('POST /repos/{owner}/{repo}/branches', {
         owner: remote.owner,
         repo: remote.repo,
-        ref: createRef(name),
-        sha: baseSha,
+        new_branch_name: name,
+        old_ref_name: baseSha,
       })
     ).data;
-    logger.info(`Successfully created branch at ${refData.url}`);
+
+    logger.info(`Successfully created branch at ${refData.commit.url}`);
   } else {
     logger.info('Skipping branch creation step...');
   }

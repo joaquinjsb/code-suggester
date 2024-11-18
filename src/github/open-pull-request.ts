@@ -1,16 +1,20 @@
-// Copyright 2020 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * // Copyright 2020 Google LLC
+ * //
+ * // Licensed under the Apache License, Version 2.0 (the "License");
+ * // you may not use this file except in compliance with the License.
+ * // You may obtain a copy of the License at
+ * //
+ * //     https://www.apache.org/licenses/LICENSE-2.0
+ * //
+ * // Unless required by applicable law or agreed to in writing, software
+ * // distributed under the License is distributed on an "AS IS" BASIS,
+ * // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * // See the License for the specific language governing permissions and
+ * // limitations under the License.
+ * //
+ * //Modifications made by Joaquin Santana on 18/11/24, 22:09
+ */
 
 import {BranchDomain, Description, RepoDomain} from '../types';
 import {Octokit} from '@octokit/rest';
@@ -45,8 +49,9 @@ async function openPullRequest(
       owner: upstream.owner,
       repo: origin.repo,
       head,
+      state: 'open',
     })
-  ).data.find(pr => pr.head.label === head);
+  ).data.find(pr => `${pr.head.repo.owner.login}:${pr.head.label}` === head);
   if (existingPullRequest) {
     logger.info(
       `Found existing pull request for reference ${origin.owner}:${origin.branch}. Skipping creating a new pull request.`

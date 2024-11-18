@@ -1,28 +1,28 @@
-// Copyright 2020 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * // Copyright 2020 Google LLC
+ * //
+ * // Licensed under the Apache License, Version 2.0 (the "License");
+ * // you may not use this file except in compliance with the License.
+ * // You may obtain a copy of the License at
+ * //
+ * //     https://www.apache.org/licenses/LICENSE-2.0
+ * //
+ * // Unless required by applicable law or agreed to in writing, software
+ * // distributed under the License is distributed on an "AS IS" BASIS,
+ * // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * // See the License for the specific language governing permissions and
+ * // limitations under the License.
+ * //
+ * //Modifications made by Joaquin Santana on 18/11/24, 22:09
+ */
 
-import {
-  Changes,
-  FileData,
-  TreeObject,
-  RepoDomain,
-  BranchDomain,
-} from '../types';
+import {BranchDomain, Changes, FileData, RepoDomain, TreeObject} from '../types';
 import {Octokit} from '@octokit/rest';
 import {logger} from '../logger';
 import {createCommit, CreateCommitOptions} from './create-commit';
 import {CommitError} from '../errors';
+import * as git from 'isomorphic-git';
+import {TreeEntry} from 'isomorphic-git';
 
 const DEFAULT_FILES_PER_COMMIT = 100;
 
@@ -74,6 +74,7 @@ function* inGroupsOf<T>(
  * @param {RepoDomain} origin the the remote repository to push changes to
  * @param {string} refHead the base of the new commit(s)
  * @param {TreeObject[]} tree the set of GitHub changes to upload
+ * @param gitConfig
  * @returns {Promise<string>} the GitHub tree SHA
  * @throws {CommitError}
  */
@@ -81,7 +82,8 @@ export async function createTree(
   octokit: Octokit,
   origin: RepoDomain,
   refHead: string,
-  tree: TreeObject[]
+  tree: TreeObject[],
+  gitConfig: any
 ): Promise<string> {
   const oldTreeSha = (
     await octokit.git.getCommit({
@@ -89,17 +91,39 @@ export async function createTree(
       repo: origin.repo,
       commit_sha: refHead,
     })
-  ).data.tree.sha;
+  )// @ts-ignore
+      .data.commit.tree.sha;
   logger.info('Got the latest commit tree');
   try {
-    const treeSha = (
-      await octokit.git.createTree({
-        owner: origin.owner,
-        repo: origin.repo,
-        tree,
-        base_tree: oldTreeSha,
+    const oldTree = await git.readTree({...gitConfig, oid: oldTreeSha});
+    const transformTree = await Promise.all(
+      tree.map(async value => {
+        if (value.content) {
+          value.sha = await git.writeBlob({
+            ...gitConfig,
+            blob: Buffer.from(value.content),
+          });
+        }
+        const treeEntry: TreeEntry = {
+          mode: value.mode,
+          path: value.path,
+          oid: value.sha || '',
+          type: value.type,
+        };
+
+        return treeEntry;
       })
-    ).data.sha;
+    );
+
+    //add all the old tree entries to the new tree if the path is not already in the new tree
+    oldTree.tree.forEach(value => {
+      if (!transformTree.find(treeEntry => treeEntry.path === value.path)) {
+        transformTree.push(value);
+      }
+    });
+
+    const treeSha = await git.writeTree({...gitConfig, tree: transformTree});
+
     logger.info(
       `Successfully created a tree with the desired changes with SHA ${treeSha}`
     );
@@ -112,25 +136,24 @@ export async function createTree(
 /**
  * Update a reference to a SHA
  * Rejects if GitHub V3 API fails with the GitHub error response
- * @param {Octokit} octokit The authenticated octokit instance
  * @param {BranchDomain} origin the the remote branch to push changes to
  * @param {string} newSha the ref to update the commit HEAD to
  * @param {boolean} force to force the commit changes given refHead
+ * @param gitConfig
  * @returns {Promise<void>}
  */
 export async function updateRef(
-  octokit: Octokit,
   origin: BranchDomain,
   newSha: string,
-  force: boolean
+  force: boolean,
+  gitConfig: any
 ): Promise<void> {
   logger.info(`Updating reference heads/${origin.branch} to ${newSha}`);
   try {
-    await octokit.git.updateRef({
-      owner: origin.owner,
-      repo: origin.repo,
-      ref: `heads/${origin.branch}`,
-      sha: newSha,
+    await git.writeRef({
+      ...gitConfig,
+      ref: `refs/heads/${origin.branch}`,
+      value: newSha,
       force,
     });
     logger.info(`Successfully updated reference ${origin.branch} to ${newSha}`);
@@ -152,10 +175,10 @@ interface CommitAndPushOptions extends CreateCommitOptions {
  * @param {Octokit} octokit The authenticated octokit instance
  * @param {string} refHead the base of the new commit(s)
  * @param {Changes} changes the set of repository changes
- * @param {RepoDomain} origin the the remote repository to push changes to
- * @param {string} originBranchName the remote branch that will contain the new changes
+ * @param originBranch
  * @param {string} commitMessage the message of the new commit
  * @param {boolean} force to force the commit changes given refHead
+ * @param options
  * @returns {Promise<void>}
  * @throws {CommitError}
  */
@@ -167,19 +190,23 @@ export async function commitAndPush(
   commitMessage: string,
   force: boolean,
   options?: CommitAndPushOptions
-) {
+): Promise<void> {
   const filesPerCommit = options?.filesPerCommit ?? DEFAULT_FILES_PER_COMMIT;
   const tree = generateTreeObjects(changes);
   for (const treeGroup of inGroupsOf(tree, filesPerCommit)) {
-    const treeSha = await createTree(octokit, originBranch, refHead, treeGroup);
-    refHead = await createCommit(
+    const treeSha = await createTree(
       octokit,
       originBranch,
       refHead,
-      treeSha,
-      commitMessage,
-      options
+      treeGroup,
+      options?.gitConfig
     );
+    refHead = await createCommit(refHead, treeSha, commitMessage, options);
   }
-  await updateRef(octokit, originBranch, refHead, force);
+
+  await updateRef(originBranch, refHead, force, options?.gitConfig);
+
+  await git.push({...options?.gitConfig, force: force});
+
+  logger.info('Pushed to remote repository successfully');
 }

@@ -1,28 +1,31 @@
-// Copyright 2020 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * // Copyright 2020 Google LLC
+ * //
+ * // Licensed under the Apache License, Version 2.0 (the "License");
+ * // you may not use this file except in compliance with the License.
+ * // You may obtain a copy of the License at
+ * //
+ * //     https://www.apache.org/licenses/LICENSE-2.0
+ * //
+ * // Unless required by applicable law or agreed to in writing, software
+ * // distributed under the License is distributed on an "AS IS" BASIS,
+ * // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * // See the License for the specific language governing permissions and
+ * // limitations under the License.
+ * //
+ * //Modifications made by Joaquin Santana on 18/11/24, 22:09
+ */
 
 import {
-  Changes,
-  Description,
-  CreatePullRequestUserOptions,
-  RepoDomain,
   BranchDomain,
+  Changes,
+  CreatePullRequestUserOptions,
+  CreateReviewCommentUserOptions,
+  Description,
   FileData,
   FileDiffContent,
-  CreateReviewCommentUserOptions,
+  RepoDomain,
 } from './types';
-export {Changes, CommitData, CommitSigner} from './types';
 import {Octokit} from '@octokit/rest';
 import {logger, setupLogger} from './logger';
 import {
@@ -30,12 +33,19 @@ import {
   addReviewCommentsDefaults,
 } from './default-options-handler';
 import * as retry from 'async-retry';
+import http from 'isomorphic-git/http/web';
+import * as git from 'isomorphic-git';
+import * as fs from 'fs/promises';
 import {createPullRequestReview} from './github/review-pull-request';
 import {branch} from './github/branch';
 import {fork} from './github/fork';
 import {commitAndPush} from './github/commit-and-push';
 import {openPullRequest} from './github/open-pull-request';
 import {addLabels} from './github/labels';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+export {Changes, CommitData, CommitSigner} from './types';
 export {getChanges, getDiffString} from './bin/handle-git-dir-change';
 export {CommitError} from './errors';
 
@@ -125,6 +135,7 @@ async function createPullRequest(
     );
     return 0;
   }
+
   const gitHubConfigs = addPullRequestDefaults(options);
   logger.info('Starting GitHub PR workflow...');
   const upstream: RepoDomain = {
@@ -184,6 +195,36 @@ async function createPullRequest(
       },
     }
   );
+
+  const tempDirectory: string = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'git-')
+  );
+
+  logger.info(`Cloning repository to ${tempDirectory}`);
+
+  const gitConfig = {
+    fs,
+    http,
+    dir: tempDirectory,
+    onAuth: () => ({
+      username: options.username,
+      password: options.password,
+    }),
+  };
+
+  const octokitBaseUrl = octokit.request.endpoint.DEFAULTS.baseUrl;
+  const baseUrl = octokitBaseUrl.substring(0, octokitBaseUrl.indexOf('/api'));
+  const url = `${baseUrl}/${origin.owner}/${origin.repo}.git`;
+  await git.clone({
+    ...gitConfig,
+    url: url,
+    ref: originBranch.branch,
+  });
+
+  logger.info(`repository cloned to branch ${originBranch.branch}`);
+
+  options = options ?? {};
+  options.gitConfig = gitConfig;
 
   await commitAndPush(
     octokit,

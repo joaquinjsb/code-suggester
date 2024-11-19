@@ -13,7 +13,7 @@
  * // See the License for the specific language governing permissions and
  * // limitations under the License.
  * //
- * //Modifications made by Joaquin Santana on 18/11/24, 22:09
+ * //Modifications made by Joaquin Santana on 19/11/24, 14:40
  */
 
 import {
@@ -254,6 +254,7 @@ async function createPullRequest(
   // addLabels will no-op if options.labels is undefined or empty.
   await addLabels(octokit, upstream, originBranch, prNumber, options.labels);
 
+  fs.rm(tempDirectory, {recursive: true, force: true}).catch(e => {});
   return prNumber;
 }
 

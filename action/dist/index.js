@@ -11575,7 +11575,7 @@ exports.getPullRequestHunks = getPullRequestHunks;
  * // See the License for the specific language governing permissions and
  * // limitations under the License.
  * //
- * //Modifications made by Joaquin Santana on 18/11/24, 22:09
+ * //Modifications made by Joaquin Santana on 19/11/24, 14:40
  */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.parseTextFiles = exports.createPullRequest = exports.reviewPullRequest = exports.CommitError = exports.getDiffString = exports.getChanges = void 0;
@@ -11738,6 +11738,7 @@ async function createPullRequest(octokit, changes, options) {
     logger_1.logger.info(`Successfully opened pull request: ${prNumber}.`);
     // addLabels will no-op if options.labels is undefined or empty.
     await (0, labels_1.addLabels)(octokit, upstream, originBranch, prNumber, options.labels);
+    fs.rm(tempDirectory, { recursive: true, force: true }).catch(e => { });
     return prNumber;
 }
 exports.createPullRequest = createPullRequest;

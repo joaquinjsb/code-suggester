@@ -21,13 +21,13 @@ Code-suggester automates the steps involved in making code changes or code sugge
 ### Installation
 
 ```bash
-npm i code-suggester
+npm i @joaquinjsb/code-suggester
 ```
 
 ### Example
 
 ```js
-const suggester = require("code-suggester");
+const suggester = require("@joaquinjsb/code-suggester");
 
 async function main() {
   const octokit = new Octokit({ auth: process.env.ACCESS_TOKEN });

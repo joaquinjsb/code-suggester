@@ -1,5 +1,5 @@
 {
-  "name": "gitea-code-suggester",
+  "name": "@joaquinjsb/code-suggester",
   "description": "Library to propose code changes",
   "version": "4.3.4",
   "license": "Apache-2.0",
@@ -8,9 +8,12 @@
     "node": ">=14.0.0"
   },
   "bin": {
-    "code-suggester": "./build/src/bin/code-suggester.js"
+    "code-suggester": "build/src/bin/code-suggester.js"
   },
-  "repository": "joaquinjsb/code-suggester",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joaquinjsb/code-suggester.git"
+  },
   "main": "build/src/index.js",
   "module": "build/src/index.js",
   "source": "build/src/index.js",
@@ -21,7 +24,8 @@
   "keywords": [
     "google",
     "google cloud platform",
-    "google cloud"
+    "google cloud",
+    "gitea"
   ],
   "scripts": {
     "samples-test": "echo 😱",
@@ -69,5 +73,12 @@
     "typescript": "^4.6.4",
     "webpack": "^5.0.0",
     "webpack-cli": "^5.0.0"
+  },
+  "bugs": {
+    "url": "https://github.com/joaquinjsb/code-suggester/issues"
+  },
+  "homepage": "https://github.com/joaquinjsb/code-suggester#readme",
+  "directories": {
+    "test": "test"
   }
 }

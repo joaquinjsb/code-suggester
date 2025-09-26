@@ -13,7 +13,7 @@
  * // See the License for the specific language governing permissions and
  * // limitations under the License.
  * //
- * //Modifications made by Joaquin Santana on 18/11/24, 22:09
+ * //Modifications made by Joaquin Santana on 26/09/25, 17:42
  */
 
 import {BranchDomain, Changes, FileData, RepoDomain, TreeObject} from '../types';
@@ -25,7 +25,17 @@ import * as git from 'isomorphic-git';
 import {TreeEntry} from 'isomorphic-git';
 
 const DEFAULT_FILES_PER_COMMIT = 100;
-
+function mode2type$1(mode: string) {
+    // prettier-ignore
+    switch (mode) {
+        case '040000': return 'tree'
+        case '100644': return 'blob'
+        case '100755': return 'blob'
+        case '120000': return 'blob'
+        case '160000': return 'commit'
+    }
+    throw new Error(`Unexpected GitTree entry mode: ${mode}`)
+}
 /**
  * Generate and return a GitHub tree object structure
  * containing the target change data
@@ -41,7 +51,7 @@ export function generateTreeObjects(changes: Changes): TreeObject[] {
       tree.push({
         path,
         mode: fileData.mode,
-        type: 'blob',
+        type: mode2type$1(fileData.mode),
         sha: null,
       });
     } else {
@@ -49,7 +59,7 @@ export function generateTreeObjects(changes: Changes): TreeObject[] {
       tree.push({
         path,
         mode: fileData.mode,
-        type: 'blob',
+        type: mode2type$1(fileData.mode),
         content: fileData.content,
       });
     }
@@ -85,44 +95,30 @@ export async function createTree(
   tree: TreeObject[],
   gitConfig: any
 ): Promise<string> {
-  const oldTreeSha = (
-    await octokit.git.getCommit({
+  try {
+    const commit = await octokit.git.getCommit({
       owner: origin.owner,
       repo: origin.repo,
       commit_sha: refHead,
-    })
-  )// @ts-ignore
-      .data.commit.tree.sha;
-  logger.info('Got the latest commit tree');
-  try {
-    const oldTree = await git.readTree({...gitConfig, oid: oldTreeSha});
-    const transformTree = await Promise.all(
-      tree.map(async value => {
-        if (value.content) {
-          value.sha = await git.writeBlob({
-            ...gitConfig,
-            blob: Buffer.from(value.content),
-          });
-        }
-        const treeEntry: TreeEntry = {
-          mode: value.mode,
-          path: value.path,
-          oid: value.sha || '',
-          type: value.type,
-        };
-
-        return treeEntry;
-      })
-    );
-
-    //add all the old tree entries to the new tree if the path is not already in the new tree
-    oldTree.tree.forEach(value => {
-      if (!transformTree.find(treeEntry => treeEntry.path === value.path)) {
-        transformTree.push(value);
-      }
     });
+    // @ts-ignore
+    const oldTreeSha = commit.data.commit.tree.sha;
+    logger.info('Got the latest commit tree');
 
-    const treeSha = await git.writeTree({...gitConfig, tree: transformTree});
+    let currentTree = (await git.readTree({...gitConfig, oid: oldTreeSha}))
+      .tree;
+
+    for (const fileData of tree) {
+      const pathParts = fileData.path.split('/');
+      currentTree = await updateTreeRecursively(
+        gitConfig,
+        currentTree,
+        pathParts,
+        fileData
+      );
+    }
+
+    const treeSha = await git.writeTree({...gitConfig, tree: currentTree});
 
     logger.info(
       `Successfully created a tree with the desired changes with SHA ${treeSha}`
@@ -132,6 +128,82 @@ export async function createTree(
     throw new CommitError(`Error adding to tree: ${refHead}`, e as Error);
   }
 }
+
+async function updateTreeRecursively(
+    gitConfig: any,
+    existingTree: TreeEntry[],
+    pathParts: string[],
+    fileData: TreeObject
+): Promise<TreeEntry[]> {
+    const newTree = [...existingTree];
+    const part = pathParts[0];
+    const remainingParts = pathParts.slice(1);
+    const existingIndex = newTree.findIndex(entry => entry.path === part);
+
+    if (remainingParts.length === 0) {
+        // Siamo al file/blob
+        const blobOid =
+            fileData.content === null
+                ? null // Eliminazione
+                : await git.writeBlob({
+                    ...gitConfig,
+                    blob: Buffer.from(fileData.content!),
+                });
+
+        if (blobOid === null) {
+            // Remove if existing
+            if (existingIndex !== -1) {
+                newTree.splice(existingIndex, 1);
+            }
+        } else {
+            const newEntry: TreeEntry = {
+                mode: fileData.mode,
+                path: part,
+                oid: blobOid,
+                type: 'blob',
+            };
+            if (existingIndex !== -1) {
+                newTree[existingIndex] = newEntry;
+            } else {
+                newTree.push(newEntry);
+            }
+        }
+    } else {
+        // we are in a directory
+        let subTree: TreeEntry[] = [];
+        if (existingIndex !== -1 && newTree[existingIndex].type === 'tree') {
+            const subTreeOid = newTree[existingIndex].oid;
+            subTree = (await git.readTree({...gitConfig, oid: subTreeOid})).tree;
+        }
+
+        const updatedSubTree = await updateTreeRecursively(
+            gitConfig,
+            subTree,
+            remainingParts,
+            fileData
+        );
+        const newSubTreeOid = await git.writeTree({
+            ...gitConfig,
+            tree: updatedSubTree,
+        });
+
+        const newEntry: TreeEntry = {
+            mode: '040000', // directory mode
+            path: part,
+            oid: newSubTreeOid,
+            type: 'tree',
+        };
+
+        if (existingIndex !== -1) {
+            newTree[existingIndex] = newEntry;
+        } else {
+            newTree.push(newEntry);
+        }
+    }
+
+    return newTree;
+}
+
 
 /**
  * Update a reference to a SHA
